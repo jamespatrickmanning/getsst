@@ -23,10 +23,10 @@ from mpl_toolkits.basemap import Basemap
 #HARDCODES
 #datetime_wanted=dt.datetime(2017,11,18,8,0,0,0)
 datetime_wanted=dt.datetime(2020,6,16,8,0,0,0)
-area='NorthShore'
-cont_lev=[8,20,1]# min, max, and interval of temp contours wanted
-agg="1" # aggregate to plot 1, 3, or 8 days
-
+area='WNERR'
+#cont_lev=[16,23,1]# min, max, and interval of temp contours wanted
+cont_lev=[60,66,1]
+agg="1"
 def getgbox(area):
   # gets geographic box based on area
   if area=='SNE':
@@ -39,10 +39,12 @@ def getgbox(area):
     gbox=[-71.,-63.,38.,42.5] # for Gulf Stream
   elif area=='NorthShore':
     gbox=[-71.,-69.5,41.5,43.] # for north shore
+  elif area=='WNERR':
+    gbox=[-71.,-70.,42.,43.] # for WNERR deployment
   elif area=='CCBAY':
     gbox=[-70.75,-69.8,41.5,42.23] # CCBAY
   elif area=='inside_CCBAY':
-    gbox=[-70.75,-70.,41.7,42.23] # CCBAY
+    gbox=[-70.75,-70.,41.7,42.23] # inside_CCBAY
   elif area=='NEC':
     gbox=[-69.,-64.,39.,43.5] # NE Channel
   elif area=='NE':
@@ -57,7 +59,8 @@ def getsst(datetime_wanted,gbox):
     #dataset1=open_url(url1)
     nc=Dataset(url1)
     #times=list(dataset1['time'])
-    times=list(nc.variables['time'])
+    #times=list(nc.variables['time'])
+    times=ma.getdata(nc.variables['time'])
     print('finding the nearest image index over times')
     index_second=int(round(np.interp(second,times,range(len(times)))))# finds the closest time index
     #url='http://basin.ceoe.udel.edu/thredds/dodsC/Aqua'+agg+'DayAggregate.nc?lat[0:1:4499],lon[0:1:4999],'+'sst['+str(index_second)+':1:'+str(index_second)+'][0:1:4499][0:1:4999]'+',time['+str(index_second)+':1:'+str(index_second)+']'
@@ -83,13 +86,16 @@ def getsst(datetime_wanted,gbox):
     index_lat2=int(round(np.interp(gbox[3],lat,range(len(lat)))))
     # get part of the sst
     #sst_part=sst[index_second,index_lat1:index_lat2,index_lon1:index_lon2]
-    sst_part=sst[0,index_lat1:index_lat2,index_lon1:index_lon2]
+    sst_part=sst[0,index_lat1:index_lat2,index_lon1:index_lon2]#*1.8+32
     print('got the subsampled sst')
-    sst_part[(sst_part==-999)]=np.NaN # if sst_part=-999, convert to NaN
+    sst_part[(sst_part==-999)]=np.NaN# if sst_part=-999, convert to NaN
+    sst_part=sst_part*1.8+32 # conver to degF
+    print('temp range is '+str(np.nanmin(sst_part))+' to '+str(np.nanmax(sst_part))+' degF')
     X,Y=np.meshgrid(lon[index_lon1:index_lon2],lat[index_lat1:index_lat2])
     print('ready to contour')
-    plt.contourf(X,Y,sst_part,np.arange(cont_lev[0],cont_lev[1],cont_lev[2]))
-    cb=plt.colorbar()
+    cmap = plt.cm.jet
+    plt.contourf(X,Y,sst_part,np.arange(cont_lev[0],cont_lev[1],cont_lev[2]),cmap=cmap)
+    cb=plt.colorbar(cmap=cmap)
     cb.set_ticks(np.linspace(cont_lev[0],cont_lev[1],int(cont_lev[1]-cont_lev[0])+1))#/(cont_lev[2]*2.))))
     cb.set_label('Degree C')
 #MAKE BASEMAP
@@ -110,7 +116,7 @@ m.drawmapboundary()
 #GET SST & PLOT
 getsst(datetime_wanted,gbox)
 
-plt.title(str(datetime_wanted.strftime("%d-%b-%Y %H:%M"))+' '+agg+' day composite')
+plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+' day UDEL composite')
 plt.savefig(area+'_'+datetime_wanted.strftime('%Y-%m-%d %H:%M')+'_'+agg+'.png')
 plt.show()
 
