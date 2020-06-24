@@ -17,7 +17,7 @@ from numpy import ma
 import time
 import os
 #NOTE:  JiM NEEDED THE FOLLOWING LINE TO POINT TO PROJ LIBRARY
-os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
+#os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
 from mpl_toolkits.basemap import Basemap
 
 #HARDCODES
