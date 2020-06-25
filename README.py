@@ -10,12 +10,12 @@ Note: In order to make this run on my old Toshiba Windows Laptop during 2020 Pan
     -convert the masked sst array to a regular array
     -posted on Github for Jack Polentes to try
     
-Still not sure why it takes so long (~30 minutes) to run.
-
 This code makes as it stands makes a single png for user supplied date and time.
+
 Hardcodes include:
     - number of days to aggregate images (done by UDEL folks)
-    - cont_lev to specify the min, max, and int of temp contours
+    - cont_lev to specify the min, max, and int of temp contours in units of choice
+    - cluster of drifter or miniboat tracks to overlay
     
 
 
