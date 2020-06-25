@@ -12,12 +12,13 @@ import datetime as dt
 import matplotlib.pyplot as plt
 #from pydap.client import open_url
 from netCDF4 import Dataset
+import pandas as pd
 import numpy as np
 from numpy import ma
 import time
 import os
 #NOTE:  JiM NEEDED THE FOLLOWING LINE TO POINT TO PROJ LIBRARY
-#os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
+os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
 from mpl_toolkits.basemap import Basemap
 
 #HARDCODES
@@ -25,8 +26,12 @@ from mpl_toolkits.basemap import Basemap
 datetime_wanted=dt.datetime(2020,6,16,8,0,0,0)
 area='WNERR'
 #cont_lev=[16,23,1]# min, max, and interval of temp contours wanted
-cont_lev=[60,66,1]
+cont_lev=[59,65,.5]
 agg="1"
+#cluster='wnerr_2020_1' # batch of drifter
+cluster='ep_2020_1'
+#ID=206430702 # drifter ID to overlay
+ID=203400681
 def getgbox(area):
   # gets geographic box based on area
   if area=='SNE':
@@ -40,7 +45,7 @@ def getgbox(area):
   elif area=='NorthShore':
     gbox=[-71.,-69.5,41.5,43.] # for north shore
   elif area=='WNERR':
-    gbox=[-71.,-70.,42.,43.] # for WNERR deployment
+    gbox=[-71.,-69.5,42.3,43.25] # for WNERR deployment
   elif area=='CCBAY':
     gbox=[-70.75,-69.8,41.5,42.23] # CCBAY
   elif area=='inside_CCBAY':
@@ -50,7 +55,16 @@ def getgbox(area):
   elif area=='NE':
     gbox=[-76.,-66.,35.,44.5] # NE Shelf 
   return gbox
-def getsst(datetime_wanted,gbox):
+def getdrifter(ID):
+    # plots drifter with ID=ID on a basemap "m"
+    df=pd.read_csv('http://nefsc.noaa.gov/drifter/drift_'+cluster+'.csv')
+    df=df[df['ID']==ID]
+    xx=df.LON.values
+    yy=df.LAT.values
+    #m.plot(xx,yy)
+    print(xx)
+    return xx,yy
+def getsst(m,datetime_wanted,gbox):
     
     second=time.mktime(datetime_wanted.timetuple())
     #url1='http://basin.ceoe.udel.edu/thredds/dodsC/Aqua3DayAggregate.nc' # new address found in Nov 2017
@@ -91,10 +105,12 @@ def getsst(datetime_wanted,gbox):
     sst_part[(sst_part==-999)]=np.NaN# if sst_part=-999, convert to NaN
     sst_part=sst_part*1.8+32 # conver to degF
     print('temp range is '+str(np.nanmin(sst_part))+' to '+str(np.nanmax(sst_part))+' degF')
-    X,Y=np.meshgrid(lon[index_lon1:index_lon2],lat[index_lat1:index_lat2])
+    #X,Y=np.meshgrid(lon[index_lon1:index_lon2],lat[index_lat1:index_lat2])
+    X,Y=m.makegrid(len(lon[index_lon1:index_lon2]),len(lat[index_lat1:index_lat2]))#lon[index_lon1:index_lon2],lat[index_lat1:index_lat2])
     print('ready to contour')
+    X,Y=m(X,Y)
     cmap = plt.cm.jet
-    plt.contourf(X,Y,sst_part,np.arange(cont_lev[0],cont_lev[1],cont_lev[2]),cmap=cmap)
+    m.contourf(X,Y,sst_part,np.arange(cont_lev[0],cont_lev[1],cont_lev[2]),cmap=cmap,zorder=0)
     cb=plt.colorbar(cmap=cmap)
     cb.set_ticks(np.linspace(cont_lev[0],cont_lev[1],int(cont_lev[1]-cont_lev[0])+1))#/(cont_lev[2]*2.))))
     cb.set_label('Degree C')
@@ -105,18 +121,37 @@ lonsize=[gbox[0],gbox[1]]
 tick_int=(gbox[3]-gbox[2])/4. # allow for 3-4 tick axis label intervals
 if tick_int>2:
     tick_int=int(tick_int)   # make the tick_interval integer increments
-fig=plt.figure()
-m = Basemap(projection='cyl',llcrnrlat=min(latsize),urcrnrlat=max(latsize),\
+if tick_int<=2:
+    tick_int=.5
+fig,ax=plt.subplots()
+m = Basemap(projection='merc',llcrnrlat=min(latsize),urcrnrlat=max(latsize),\
             llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='i')
+#GET SST & PLOT
+m.fillcontinents(color='gray')
+getsst(m,datetime_wanted,gbox)
+#[xx,yy]=getdrifter(203400681)
+#df=pd.read_csv('http://nefsc.noaa.gov/drifter/drift_'+cluster+'.csv')
+#df=df[df['ID']==ID]
+#xx=df.LON.values
+#yy=df.LAT.values
+df=pd.read_csv('http://nefsc.noaa.gov/drifter/drift_'+str(ID)+'_sensor.csv')
+df=df[0:24*3] # end it 3 days in
+#df=df[df['id']==ID]
+xx=df.yearday.values #bad header makes  lon yearday and lat lon
+yy=df.lon.values
+
+x,y=m(xx,yy)
+m.plot(x,y,'m-')
+for k in np.arange(10,len(xx),5):
+    t=df['max_airt'][k]*1.8+32
+    ax.annotate('%.1f' % t,(x[k],y[k]),color='k',fontsize=12,zorder=10)#xytext=(-500,500),textcoords='offset points'
 m.drawparallels(np.arange(min(latsize),max(latsize)+1,tick_int),labels=[1,0,0,0])
 m.drawmeridians(np.arange(min(lonsize),max(lonsize)+1,tick_int),labels=[0,0,0,1])
 #m.drawcoastlines()
-m.fillcontinents(color='gray')
-m.drawmapboundary()
-#GET SST & PLOT
-getsst(datetime_wanted,gbox)
 
-plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+' day UDEL composite')
+m.drawmapboundary()
+
+plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day UDEL composite w/miniboat SSTs')
 plt.savefig(area+'_'+datetime_wanted.strftime('%Y-%m-%d %H:%M')+'_'+agg+'.png')
 plt.show()
 
