@@ -13,8 +13,10 @@ Note: In order to make this run on my old Toshiba Windows Laptop during 2020 Pan
 This code makes as it stands makes a single png for user supplied date and time.
 
 Hardcodes include:
-    - number of days to aggregate images (done by UDEL folks)
+    - number of days to aggregate images (done by imagery folks)
+    - choice of imagery source (UDEL and MARACOOS in mid-2020)
     - cont_lev to specify the min, max, and int of temp contours in units of choice
+    - choice of "area" to focus on including for example "Cape Cod", "NorthSHore", etc which defines geographic box
     - cluster of drifter or miniboat tracks to overlay
     
 
