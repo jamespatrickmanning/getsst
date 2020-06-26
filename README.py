@@ -10,7 +10,8 @@ Note: In order to make this run on my old Toshiba Windows Laptop during 2020 Pan
     -convert the masked sst array to a regular array
     -posted on Github for Jack Polentes to try
     
-This code makes as it stands makes a single png for user supplied date and time.
+This code makes as it stands makes a single png for user supplied date and time
+but could be easily adapted to making animations 
 
 Hardcodes include:
     - number of days to aggregate images (done by imagery folks)
