@@ -4,10 +4,10 @@ Created on Wed Nov 15 14:02:40 2017
 Simple version of Sat SST plot with one panel
 @author: huimin
 Modifications by JiM in June 2019 to work on laptop at home
-Modifications by JiM in June 2020 to update both the URL, add netCDF4 method, cont_lev, and miniboat overlay
+Modifications by JiM in mid-June 2020 to update both the URL, add netCDF4 method, cont_lev, and miniboat overlay
+Modifications by JiM in late-June 2020 to add another sat image option
 """
 
-import sys
 import datetime as dt
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
@@ -15,17 +15,17 @@ import pandas as pd
 import numpy as np
 from numpy import ma
 import time
+#NOTE:  JiM NEEDED THE FOLLOWING LINE TO POINT TO his PROJ LIBRARY
 #import os
-#NOTE:  JiM NEEDED THE FOLLOWING LINE TO POINT TO PROJ LIBRARY
 #os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
 from mpl_toolkits.basemap import Basemap
 
 #HARDCODES
+sat_option='MARACOOS' #'MARACOOS' or 'UDEL', the two options for imagery available in mid-2020
 datetime_wanted=dt.datetime(2020,6,16,8,0,0,0)
 area='WNERR' # geographic box (see gbox function below)
-#cont_lev=[16,23,1]# min, max, and interval of temp contours wanted
-cont_lev=[59,65,.5] # degF
-agg="1" # number of days of satellite image aggragation done by UDEL
+cont_lev=[13,18,.2]# min, max, and interval in either degC or degF of temp contours wanted
+agg="3" # number of days of satellite image aggragation done by UDEL
 #cluster='wnerr_2020_1' # batch of drifter
 cluster='ep_2020_1' #leave blank if none
 #ID=206430702 # drifter ID to overlay
@@ -56,25 +56,31 @@ def getgbox(area):
     gbox=[-76.,-66.,35.,44.5] # NE Shelf 
   return gbox
 
-def getsst(m,datetime_wanted,gbox):
+def getsst(m,datetime_wanted,gbox,sat_option):
     # gets and contours satellite SST
     second=time.mktime(datetime_wanted.timetuple())
-    #url1='http://basin.ceoe.udel.edu/thredds/dodsC/Aqua3DayAggregate.nc' # new address found in Nov 2017
-    url1='http://thredds.demac.udel.edu/thredds/dodsC/Aqua'+agg+'DayAggregate.nc'
-    nc=Dataset(url1)
-    #times=list(nc.variables['time']) # this took way too much time
-    times=ma.getdata(nc.variables['time'])
-    print('finding the nearest image index over times')
-    index_second=int(round(np.interp(second,times,range(len(times)))))# finds the closest time index
-    url='http://thredds.demac.udel.edu/thredds/dodsC/Aqua'+agg+'DayAggregate.nc?lat[0:1:4499],lon[0:1:4999],'+'sst['+str(index_second)+':1:'+str(index_second)+'][0:1:4499][0:1:4999]'+',time['+str(index_second)+':1:'+str(index_second)+']'
-    try:
-        print(url)
+    if sat_option=='UDEL':
+        #url1='http://basin.ceoe.udel.edu/thredds/dodsC/Aqua3DayAggregate.nc' # new address found in Nov 2017
+        url1='http://thredds.demac.udel.edu/thredds/dodsC/Aqua'+agg+'DayAggregate.nc'
+        dataset=Dataset(url1)
+        #times=list(nc.variables['time']) # this took way too much time
+        times=ma.getdata(dataset.variables['time'])
+        print('finding the nearest image index over times')
+        index_second=int(round(np.interp(second,times,range(len(times)))))# finds the closest time index
+        url='http://thredds.demac.udel.edu/thredds/dodsC/Aqua'+agg+'DayAggregate.nc?lat[0:1:4499],lon[0:1:4999],'+'sst['+str(index_second)+':1:'+str(index_second)+'][0:1:4499][0:1:4999]'+',time['+str(index_second)+':1:'+str(index_second)+']'
         dataset=Dataset(url)
-    except:
-        print("please check your url!")
-        sys.exit(0)
-    print('converting the masked array sst to an array') 
-    sst=ma.getdata(list(dataset['sst']))
+        print('converting the masked array sst to an array') 
+        sst=ma.getdata(list(dataset['sst']))
+    else: #sat_option='MARACOOS'
+        url1='http://tds.maracoos.org/thredds/dodsC/AVHRR'+agg+'.nc'
+        dataset=Dataset(url1)
+        times=ma.getdata(dataset.variables['time'])
+        inds=int(round(np.interp(second,times,range(len(times)))))# finds the closest time index
+        #url='http://tds.maracoos.org/thredds/dodsC/AVHRR7.nc?lon[0:1:4499],lat[0:1:3660],mcsst['+str(inds)+':1:'+str(inds)+'][0:1:4499][0:1:3660],time['+str(inds)+':1:'+str(inds)+']'
+        url='http://tds.maracoos.org/thredds/dodsC/AVHRR7.nc?lon[0:1:4499],lat[0:1:3660],time['+str(inds)+':1:'+str(inds)+'],mcsst['+str(inds)+':1:'+str(inds)+'][0:1:3660][0:1:4499]'
+        dataset=Dataset(url)
+        print('converting the masked array sst to an array') 
+        sst=ma.getdata(list(dataset['mcsst']))
     print('got the sst')
     lat=ma.getdata(dataset['lat'][:])
     lon=ma.getdata(dataset['lon'][:])
@@ -115,10 +121,10 @@ if tick_int<=2:
     tick_int=.5
 fig,ax=plt.subplots()
 m = Basemap(projection='merc',llcrnrlat=min(latsize),urcrnrlat=max(latsize),\
-            llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='i')
+            llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='f')
 m.fillcontinents(color='gray')
 #GET SST & PLOT
-getsst(m,datetime_wanted,gbox)
+getsst(m,datetime_wanted,gbox,sat_option)
 #GET TRACK & PLOT
 if len(cluster)!=0:
     df=pd.read_csv('http://nefsc.noaa.gov/drifter/drift_'+str(ID)+'_sensor.csv')
@@ -128,15 +134,18 @@ if len(cluster)!=0:
     yy=df.lon.values
     x,y=m(xx,yy)
     m.plot(x,y,'m-')
-    for k in np.arange(10,len(xx),5):
-        t=df['max_airt'][k]*1.8+32 # actually getting mean_sst
-        ax.annotate('%.1f' % t,(x[k],y[k]),color='k',fontsize=12,zorder=10)#xytext=(-500,500),textcoords='offset points'
+    for k in np.arange(5,len(xx),5):
+        if cont_lev[0]>30:
+            t=df['mean_sst'][k]*1.8+32 # actually getting mean_sst
+        else:
+            t=df['mean_sst'][k]
+        ax.annotate('%.1f' % t,(x[k],y[k]),color='k',fontweight='bold',fontsize=12,zorder=10)#xytext=(-500,500),textcoords='offset points'
 
 m.drawparallels(np.arange(min(latsize),max(latsize)+1,tick_int),labels=[1,0,0,0])
 m.drawmeridians(np.arange(min(lonsize),max(lonsize)+1,tick_int),labels=[0,0,0,1])
 #m.drawcoastlines()
 m.drawmapboundary()
-plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day UDEL composite w/miniboat SSTs')
-plt.savefig(area+'_'+datetime_wanted.strftime('%Y-%m-%d')+'_'+agg+'.png')
+plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day '+sat_option+' composite w/miniboat temps')#+cluster)
+plt.savefig(sat_option+'_'+area+'_'+datetime_wanted.strftime('%Y-%m-%d')+'_'+agg+'.png')
 plt.show()
 
