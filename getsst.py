@@ -16,23 +16,56 @@ import numpy as np
 from numpy import ma
 import time
 #NOTE:  JiM NEEDED THE FOLLOWING LINE TO POINT TO his PROJ LIBRARY
-#import os
+import os,imageio
+import glob
 #os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
 from mpl_toolkits.basemap import Basemap
 
 #HARDCODES
 sat_option='MARACOOS' #'MARACOOS' or 'UDEL', the two options for imagery available in mid-2020
 datetime_wanted=dt.datetime(2020,6,25,8,0,0,0)
-ndays=2
+ndays=4
+png_dir='c:\\Users\\Joann\\Downloads\\getsst\\pngs\\'
 area='WNERR' # geographic box (see gbox function below)
-cont_lev=[15,23,.2]# min, max, and interval in either degC or degF of temp contours wanted
+cont_lev=[17.6,21.6,.2]# min, max, and interval in either degC or degF of temp contours wanted
 agg="3" # number of days of satellite image aggragation done by UDEL
 cluster='wnerr_2020_1' # batch of drifter
+gif_name=cluster+'.gif'
 #cluster='ep_2020_1' #leave blank if none
 #ID=206430702 # drifter ID to overlay
 ID=203400681
 
 #FUNCTIONS
+def make_gif(gif_name,png_dir,start_time=False,end_time=False,frame_length = 2,end_pause = 4 ):
+    '''use images to make the gif
+    frame_length: seconds between frames
+    end_pause: seconds to stay on last frame
+    the format of start_time and end time is string, for example: %Y-%m-%d(YYYY-MM-DD)'''
+    
+    if not os.path.exists(os.path.dirname(gif_name)):
+        os.makedirs(os.path.dirname(gif_name))
+    allfile_list = glob.glob(os.path.join(png_dir,'*.png')) # Get all the pngs in the current directory
+    print(allfile_list)
+    file_list=[]
+    '''if start_time:    
+        for file in allfile_list:
+            if start_time<=os.path.basename(file).split('.')[0]<=end_time:
+                file_list.append(file)
+    else:'''
+    file_list=allfile_list
+    #list.sort(file_list, key=lambda x: x.split('/')[-1].split('t')[0]) # Sort the images by time, this may need to be tweaked for your use case
+    images=[]
+    # loop through files, join them to image array, and write to GIF called 'wind_turbine_dist.gif'
+    for ii in range(0,len(file_list)):       
+        file_path = os.path.join(png_dir, file_list[ii])
+        if ii==len(file_list)-1:
+            for jj in range(0,int(end_pause/frame_length)):
+                images.append(imageio.imread(file_path))
+        else:
+            images.append(imageio.imread(file_path))
+    # the duration is the time spent on each image (1/duration is frame rate)
+    imageio.mimsave(gif_name, images,'GIF',duration=frame_length)
+
 def getgbox(area):
   # gets geographic box based on area
   if area=='SNE':
@@ -46,7 +79,7 @@ def getgbox(area):
   elif area=='NorthShore':
     gbox=[-71.,-69.5,41.5,43.] # for north shore
   elif area=='WNERR':
-    gbox=[-71.,-70.,42.5,43.5] # for WNERR deployment
+    gbox=[-71.,-70.,42.5,43.3] # for WNERR deployment
   elif area=='DESPASEATO':
     gbox=[-71.,-69.5,42.6,43.25] # for miniboat Despaseato deployment
   elif area=='CCBAY':
@@ -121,12 +154,12 @@ tick_int=(gbox[3]-gbox[2])/4. # allow for 3-4 tick axis label intervals
 if tick_int>2:
     tick_int=int(tick_int)   # make the tick_interval integer increments
 if tick_int<=2:
-    tick_int=.5
-for jj in range(ndays):
- datetime_wanted=datetime_wanted+dt.timedelta(days=jj)
+    tick_int=.3
+for jj in range(-1,ndays-1):
+ datetime_wanted=datetime_wanted+dt.timedelta(days=1)
  fig,ax=plt.subplots()
  m = Basemap(projection='merc',llcrnrlat=min(latsize),urcrnrlat=max(latsize),\
-            llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='l')
+            llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='f')
  m.fillcontinents(color='gray')
  #GET SST & PLOT
  getsst(m,datetime_wanted,gbox,sat_option)
@@ -151,7 +184,7 @@ for jj in range(ndays):
     ids=np.unique(df['ID'])
     for k in ids:
         df1=df[df['ID']==k]
-        df1=df1[(df1['DAY']>datetime_wanted+1) & (df1['DAY']<datetime_wanted+1)]
+        df1=df1[df1['DAY']==datetime_wanted.day]
         x,y=m(df1['LON'].values,df1['LAT'].values)
         m.plot(x,y,'k')
     
@@ -160,6 +193,7 @@ for jj in range(ndays):
  #m.drawcoastlines()
  m.drawmapboundary()
  plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day '+sat_option+' composite')#+cluster)
- plt.savefig(sat_option+'_'+area+'_'+datetime_wanted.strftime('%Y-%m-%d')+'_'+agg+'.png')
+ plt.savefig(png_dir+sat_option+'_'+area+'_'+datetime_wanted.strftime('%Y-%m-%d')+'_'+agg+'.png')
  plt.show()
-
+gif_name=png_dir+gif_name
+make_gif(gif_name,png_dir,start_time=datetime_wanted-dt.timedelta(days=ndays),end_time=datetime_wanted)
