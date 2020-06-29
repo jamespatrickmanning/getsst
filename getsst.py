@@ -16,13 +16,14 @@ import numpy as np
 from numpy import ma
 import time
 #NOTE:  JiM NEEDED THE FOLLOWING LINE TO POINT TO his PROJ LIBRARY
-import os
-os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
+#import os
+#os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
 from mpl_toolkits.basemap import Basemap
 
 #HARDCODES
 sat_option='MARACOOS' #'MARACOOS' or 'UDEL', the two options for imagery available in mid-2020
 datetime_wanted=dt.datetime(2020,6,25,8,0,0,0)
+ndays=2
 area='WNERR' # geographic box (see gbox function below)
 cont_lev=[15,23,.2]# min, max, and interval in either degC or degF of temp contours wanted
 agg="3" # number of days of satellite image aggragation done by UDEL
@@ -121,14 +122,16 @@ if tick_int>2:
     tick_int=int(tick_int)   # make the tick_interval integer increments
 if tick_int<=2:
     tick_int=.5
-fig,ax=plt.subplots()
-m = Basemap(projection='merc',llcrnrlat=min(latsize),urcrnrlat=max(latsize),\
+for jj in range(ndays):
+ datetime_wanted=datetime_wanted+dt.timedelta(days=jj)
+ fig,ax=plt.subplots()
+ m = Basemap(projection='merc',llcrnrlat=min(latsize),urcrnrlat=max(latsize),\
             llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='l')
-m.fillcontinents(color='gray')
-#GET SST & PLOT
-getsst(m,datetime_wanted,gbox,sat_option)
-#GET TRACK & PLOT
-if len(cluster)!=0:
+ m.fillcontinents(color='gray')
+ #GET SST & PLOT
+ getsst(m,datetime_wanted,gbox,sat_option)
+ #GET TRACK & PLOT
+ if len(cluster)!=0:
   if cluster[0:2]=='ep': # case of educational passages miniboats
     df=pd.read_csv('http://nefsc.noaa.gov/drifter/drift_'+str(ID)+'_sensor.csv')
     df=df[0:24*3] # end it 3 days in
@@ -148,14 +151,15 @@ if len(cluster)!=0:
     ids=np.unique(df['ID'])
     for k in ids:
         df1=df[df['ID']==k]
+        df1=df1[(df1['DAY']>datetime_wanted+1) & (df1['DAY']<datetime_wanted+1)]
         x,y=m(df1['LON'].values,df1['LAT'].values)
         m.plot(x,y,'k')
     
-m.drawparallels(np.arange(min(latsize),max(latsize)+1,tick_int),labels=[1,0,0,0])
-m.drawmeridians(np.arange(min(lonsize),max(lonsize)+1,tick_int),labels=[0,0,0,1])
-#m.drawcoastlines()
-m.drawmapboundary()
-plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day '+sat_option+' composite')#+cluster)
-plt.savefig(sat_option+'_'+area+'_'+datetime_wanted.strftime('%Y-%m-%d')+'_'+agg+'.png')
-plt.show()
+ m.drawparallels(np.arange(min(latsize),max(latsize)+1,tick_int),labels=[1,0,0,0])
+ m.drawmeridians(np.arange(min(lonsize),max(lonsize)+1,tick_int),labels=[0,0,0,1])
+ #m.drawcoastlines()
+ m.drawmapboundary()
+ plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day '+sat_option+' composite')#+cluster)
+ plt.savefig(sat_option+'_'+area+'_'+datetime_wanted.strftime('%Y-%m-%d')+'_'+agg+'.png')
+ plt.show()
 
