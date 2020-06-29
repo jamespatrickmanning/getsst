@@ -16,18 +16,18 @@ import numpy as np
 from numpy import ma
 import time
 #NOTE:  JiM NEEDED THE FOLLOWING LINE TO POINT TO his PROJ LIBRARY
-#import os
-#os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
+import os
+os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
 from mpl_toolkits.basemap import Basemap
 
 #HARDCODES
 sat_option='MARACOOS' #'MARACOOS' or 'UDEL', the two options for imagery available in mid-2020
-datetime_wanted=dt.datetime(2020,6,16,8,0,0,0)
+datetime_wanted=dt.datetime(2020,6,25,8,0,0,0)
 area='WNERR' # geographic box (see gbox function below)
-cont_lev=[13,18,.2]# min, max, and interval in either degC or degF of temp contours wanted
+cont_lev=[15,23,.2]# min, max, and interval in either degC or degF of temp contours wanted
 agg="3" # number of days of satellite image aggragation done by UDEL
-#cluster='wnerr_2020_1' # batch of drifter
-cluster='ep_2020_1' #leave blank if none
+cluster='wnerr_2020_1' # batch of drifter
+#cluster='ep_2020_1' #leave blank if none
 #ID=206430702 # drifter ID to overlay
 ID=203400681
 
@@ -45,7 +45,9 @@ def getgbox(area):
   elif area=='NorthShore':
     gbox=[-71.,-69.5,41.5,43.] # for north shore
   elif area=='WNERR':
-    gbox=[-71.,-69.5,42.3,43.25] # for WNERR deployment
+    gbox=[-71.,-70.,42.5,43.5] # for WNERR deployment
+  elif area=='DESPASEATO':
+    gbox=[-71.,-69.5,42.6,43.25] # for miniboat Despaseato deployment
   elif area=='CCBAY':
     gbox=[-70.75,-69.8,41.5,42.23] # CCBAY
   elif area=='inside_CCBAY':
@@ -121,12 +123,13 @@ if tick_int<=2:
     tick_int=.5
 fig,ax=plt.subplots()
 m = Basemap(projection='merc',llcrnrlat=min(latsize),urcrnrlat=max(latsize),\
-            llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='f')
+            llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='l')
 m.fillcontinents(color='gray')
 #GET SST & PLOT
 getsst(m,datetime_wanted,gbox,sat_option)
 #GET TRACK & PLOT
 if len(cluster)!=0:
+  if cluster[0:2]=='ep': # case of educational passages miniboats
     df=pd.read_csv('http://nefsc.noaa.gov/drifter/drift_'+str(ID)+'_sensor.csv')
     df=df[0:24*3] # end it 3 days in
     #df=df[df['id']==ID]
@@ -140,12 +143,19 @@ if len(cluster)!=0:
         else:
             t=df['mean_sst'][k]
         ax.annotate('%.1f' % t,(x[k],y[k]),color='k',fontweight='bold',fontsize=12,zorder=10)#xytext=(-500,500),textcoords='offset points'
-
+  else: # case of multiple drifters
+    df=pd.read_csv('http://nefsc.noaa.gov/drifter/drift_'+cluster+'.csv')
+    ids=np.unique(df['ID'])
+    for k in ids:
+        df1=df[df['ID']==k]
+        x,y=m(df1['LON'].values,df1['LAT'].values)
+        m.plot(x,y,'k')
+    
 m.drawparallels(np.arange(min(latsize),max(latsize)+1,tick_int),labels=[1,0,0,0])
 m.drawmeridians(np.arange(min(lonsize),max(lonsize)+1,tick_int),labels=[0,0,0,1])
 #m.drawcoastlines()
 m.drawmapboundary()
-plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day '+sat_option+' composite w/miniboat temps')#+cluster)
+plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day '+sat_option+' composite')#+cluster)
 plt.savefig(sat_option+'_'+area+'_'+datetime_wanted.strftime('%Y-%m-%d')+'_'+agg+'.png')
 plt.show()
 
