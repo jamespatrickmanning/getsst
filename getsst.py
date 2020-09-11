@@ -11,6 +11,7 @@ Modifications by JiM in late-June 2020 to add another sat image option
 import datetime as dt
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
+import netCDF4
 import pandas as pd
 import numpy as np
 from numpy import ma
@@ -18,22 +19,26 @@ import time
 #NOTE:  JiM NEEDED THE FOLLOWING LINE TO POINT TO his PROJ LIBRARY
 import os,imageio
 import glob
-#os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
+os.environ['PROJ_LIB'] = 'c:\\Users\\Joann\\anaconda3\\pkgs\\proj4-5.2.0-ha925a31_1\\Library\share'
 from mpl_toolkits.basemap import Basemap
+import warnings
+warnings.filterwarnings("ignore") # JiM added Sep 2020 to supopress the "matplotlibDeprecationWarning"
 
 #HARDCODES
-sat_option='MARACOOS' #'MARACOOS' or 'UDEL', the two options for imagery available in mid-2020
-datetime_wanted=dt.datetime(2020,6,25,8,0,0,0)
-ndays=4
+sat_option='MARACOOS' #or 'UDEL', the two options for imagery available in mid-2020
+datetime_wanted=dt.datetime(2020,9,4,0,0,0)
+ndays=7
 png_dir='c:\\Users\\Joann\\Downloads\\getsst\\pngs\\'
-area='WNERR' # geographic box (see gbox function below)
-cont_lev=[17.6,21.6,.2]# min, max, and interval in either degC or degF of temp contours wanted
+area='GBANK' # geographic box (see gbox function below)
+cont_lev=[14.,24.,1.0]# min, max, and interval in either degC or degF of temp contours wanted
 agg="3" # number of days of satellite image aggragation done by UDEL
 cluster='wnerr_2020_1' # batch of drifter
-gif_name=cluster+'.gif'
+gif_name=cluster+'_'+str(ndays)+'_'+agg+'_obs.gif'
 #cluster='ep_2020_1' #leave blank if none
 #ID=206430702 # drifter ID to overlay
 ID=203400681
+plot_model_tracks='no' # JiM added sep 2020 otherwise 'yes' plots Wilkin's model tracks
+
 
 #FUNCTIONS
 def make_gif(gif_name,png_dir,start_time=False,end_time=False,frame_length = 2,end_pause = 4 ):
@@ -73,13 +78,13 @@ def getgbox(area):
   elif area=='OOI':
     gbox=[-72.,-69.5,39.5,41.5] # for OOI
   elif area=='GBANK':
-    gbox=[-70.,-64.,39.,42.] # for GBANK
+    gbox=[-70.5,-66.,40.5,42.5] # for GBANK
   elif area=='GS':           
     gbox=[-71.,-63.,38.,42.5] # for Gulf Stream
   elif area=='NorthShore':
     gbox=[-71.,-69.5,41.5,43.] # for north shore
   elif area=='WNERR':
-    gbox=[-71.,-70.,42.5,43.3] # for WNERR deployment
+    gbox=[-71.,-69.,41.0,44.] # for WNERR deployment
   elif area=='DESPASEATO':
     gbox=[-71.,-69.5,42.6,43.25] # for miniboat Despaseato deployment
   elif area=='CCBAY':
@@ -112,6 +117,7 @@ def getsst(m,datetime_wanted,gbox,sat_option):
         dataset=Dataset(url1)
         times=ma.getdata(dataset.variables['time'])
         inds=int(round(np.interp(second,times,range(len(times)))))# finds the closest time index
+        print("inds = "+str(inds))
         #url='http://tds.maracoos.org/thredds/dodsC/AVHRR7.nc?lon[0:1:4499],lat[0:1:3660],mcsst['+str(inds)+':1:'+str(inds)+'][0:1:4499][0:1:3660],time['+str(inds)+':1:'+str(inds)+']'
         url='http://tds.maracoos.org/thredds/dodsC/AVHRR7.nc?lon[0:1:4499],lat[0:1:3660],time['+str(inds)+':1:'+str(inds)+'],mcsst['+str(inds)+':1:'+str(inds)+'][0:1:3660][0:1:4499]'
         dataset=Dataset(url)
@@ -150,16 +156,16 @@ def getsst(m,datetime_wanted,gbox,sat_option):
 gbox=getgbox(area) # uses the getgbox function to define lat/lon boundary
 latsize=[gbox[2],gbox[3]]
 lonsize=[gbox[0],gbox[1]]
-tick_int=(gbox[3]-gbox[2])/4. # allow for 3-4 tick axis label intervals
-if tick_int>2:
-    tick_int=int(tick_int)   # make the tick_interval integer increments
-if tick_int<=2:
-    tick_int=.3
+tick_int=gbox[3]-gbox[2] # allow for 3-4 tick axis label intervals
+if tick_int>=1:
+    tick_int=int(tick_int/2.)   # make the tick_interval integer increments
+if tick_int<1:
+    tick_int=.5
 for jj in range(-1,ndays-1):
  datetime_wanted=datetime_wanted+dt.timedelta(days=1)
  fig,ax=plt.subplots()
  m = Basemap(projection='merc',llcrnrlat=min(latsize),urcrnrlat=max(latsize),\
-            llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='f')
+            llcrnrlon=min(lonsize),urcrnrlon=max(lonsize),resolution='i')
  m.fillcontinents(color='gray')
  #GET SST & PLOT
  getsst(m,datetime_wanted,gbox,sat_option)
@@ -185,15 +191,28 @@ for jj in range(-1,ndays-1):
     for k in ids:
         df1=df[df['ID']==k]
         df1=df1[df1['DAY']==datetime_wanted.day]
+        df1=df1[df1['MTH']==datetime_wanted.month]# JiM added sep 2020
         x,y=m(df1['LON'].values,df1['LAT'].values)
         m.plot(x,y,'k')
+    if plot_model_tracks=='yes':    
+        #get the forecast drifter data where I had to change the number of time steps from 31 to 29 on 7/10 vs 7/11/2020
+        #url='http://tds.marine.rutgers.edu/thredds/dodsC/floats/doppio_flt_202007'+str(datetime_wanted.day)+'.nc?ocean_time[0:1:312],lon[0:1:312][0:1:29],lat[0:1:312][0:1:29],depth[0:1:312][0:1:29],temp[0:1:312][0:1:29],salt[0:1:312][0:1:29]'
+        url='http://tds.marine.rutgers.edu/thredds/dodsC/floats/doppio_flt_2020'+str(datetime_wanted.month).zfill(2)+str(datetime_wanted.day)+'.nc?lon,lat'
+        nc=netCDF4.Dataset(url) # where we have imported Datset from netCDF4
+        dlons=nc.variables['lon'][:].filled(np.nan)# replaces the masked values with nan7
+        dlats=nc.variables['lat'][:].filled(np.nan)
+        sh=np.shape(dlons) # get the shape to see how many drifters there are
+        for k in range(sh[1]): #  loop through all the drifters
+            x,y=m(np.ma.getdata(dlons[:,k])[:],np.ma.getdata(dlats[:,k])[:])
+            m.plot(x,y,'r')
     
  m.drawparallels(np.arange(min(latsize),max(latsize)+1,tick_int),labels=[1,0,0,0])
  m.drawmeridians(np.arange(min(lonsize),max(lonsize)+1,tick_int),labels=[0,0,0,1])
  #m.drawcoastlines()
  m.drawmapboundary()
- plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day '+sat_option+' composite')#+cluster)
+ #plt.title(str(datetime_wanted.strftime("%d-%b-%Y"))+' '+agg+'-day '+sat_option+' composite')#+cluster)
+ plt.title(str(datetime_wanted.strftime("    %d-%b-%Y"))+' composite')#+cluster)
  plt.savefig(png_dir+sat_option+'_'+area+'_'+datetime_wanted.strftime('%Y-%m-%d')+'_'+agg+'.png')
- plt.show()
+ plt.show()  
 gif_name=png_dir+gif_name
 make_gif(gif_name,png_dir,start_time=datetime_wanted-dt.timedelta(days=ndays),end_time=datetime_wanted)
